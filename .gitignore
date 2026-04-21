@@ -1,1 +1,35 @@
-.vscode/settings.json
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build outputs
+.next/
+out/
+dist/
+build/
+
+# Compiled binaries
+*.exe
+mycontainer
+mycontainer_rebuilt*
+
+# Env files
+.env
+.env.local
+.env.*.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+
+# Runtime data
+*.log
+logs/*.log
+stats/*.db
+
+# Test artifacts
+.test-smoke-id

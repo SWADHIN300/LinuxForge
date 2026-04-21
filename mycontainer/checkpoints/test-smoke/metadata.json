@@ -1,8 +1,0 @@
-{
-  "container_id": "ca69acbd",
-  "name": "smoke-test",
-  "source_image": "smoke:test",
-  "criu_available": false,
-  "criu_dumped": false,
-  "created_at": "2026-04-20T18:29:17Z"
-}

@@ -1,0 +1,39 @@
+{
+  "id": "c962ba74",
+  "name": "smoke-test",
+  "status": "running",
+  "pid": 0,
+  "image": "smoke:test",
+  "command": "/bin/sh",
+  "ip": "",
+  "ipv6": "",
+  "runtime_mode": "rootless",
+  "rootless": true,
+  "privileged": false,
+  "cpuset": "",
+  "restart_policy": "no",
+  "restart_count": 0,
+  "max_restarts": 5,
+  "security_profile": "none",
+  "stack_name": "",
+  "env": [],
+  "volumes": [
+
+],
+  "healthcheck": {
+  "command": "echo ok",
+  "interval": 30,
+  "timeout": 10,
+  "retries": 3,
+  "status": "starting",
+  "last_check": "2026-04-21T15:27:25Z",
+  "consecutive_failures": 0
+},
+  "rootfs": "containers/c962ba74/rootfs",
+  "overlay": {
+  "lower": "containers/c962ba74/overlay/lower",
+  "upper": "containers/c962ba74/overlay/upper",
+  "work": "containers/c962ba74/overlay/work"
+},
+  "created_at": "2026-04-21T15:27:25Z"
+}
