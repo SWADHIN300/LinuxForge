@@ -1,3 +1,53 @@
+/*
+ * stack.c — Multi-Container Stack Orchestration
+ *
+ * PURPOSE:
+ *   Implement Docker Compose-style multi-container application stacks.
+ *   A stack is a JSON file that declares multiple container services,
+ *   each specifying an image, environment variables, volumes, and health
+ *   checks. stack_up() starts all services; stack_down() stops them.
+ *
+ * STACK FILE FORMAT (stacks/<name>.json):
+ *   {
+ *     "name":    "myapp",
+ *     "version": "1.0",
+ *     "network": { "connect_all": true },
+ *     "containers": [
+ *       {
+ *         "name":       "web",
+ *         "image":      "nginx:latest",
+ *         "port":       "8080",
+ *         "restart":    "always",
+ *         "healthcheck":"curl -f http://localhost/",
+ *         "env":        ["NODE_ENV=production"],
+ *         "volumes":    ["/data:/app/data:rw"]
+ *       },
+ *       {
+ *         "name":  "db",
+ *         "image": "postgres:14"
+ *       }
+ *     ]
+ *   }
+ *   (Also accepts "services" as alias for "containers".)
+ *
+ * NETWORK INTEGRATION:
+ *   If "connect_all": true and the network subsystem is initialised,
+ *   stack_up() calls network_connect() for every pair of containers
+ *   so they can reach each other by name via the bridge.
+ *
+ * STATE FILE (stacks/<name>.state.json):
+ *   Written by stack_write_state() after all containers start.
+ *   Contains the list of spawned container IDs and the "running"/"stopped"
+ *   status. stack_down() reads this to know which containers to stop.
+ *
+ * FUNCTIONS:
+ *   stack_up()     — parse file, run containers, connect network, write state
+ *   stack_down()   — read state, mark containers stopped, clean up network
+ *   stack_status() — print per-container status for a running stack
+ *   stack_list()   — enumerate all stacks/ *.state.json files
+ *   stack_cmd()    — CLI dispatch for `mycontainer stack`
+ */
+
 #define _GNU_SOURCE
 #include "../include/stack.h"
 #include "../include/container.h"

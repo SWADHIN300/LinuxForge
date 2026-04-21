@@ -1,3 +1,53 @@
+/*
+ * main.c — mycontainer CLI Entry Point & Command Dispatcher
+ *
+ * PURPOSE:
+ *   Parse the user's command-line arguments and route execution to the
+ *   appropriate subsystem handler. This file is the single entry point
+ *   for the mycontainer binary (compiled from src/ via the Makefile).
+ *
+ * USAGE SUMMARY:
+ *   ./mycontainer <command> [options]
+ *
+ *   Core commands:
+ *     run        → run_container()        (container.c)
+ *     logs       → logs_cmd()             (logs.c)
+ *     stats      → stats_cmd()            (stats.c)
+ *     health     → health_cmd()           (health.c)
+ *     volume     → volume_cmd()           (volume.c)
+ *     env        → env_list_cmd()         (container.c)
+ *     rename     → container_rename()     (container.c)
+ *
+ *   Image management:
+ *     image ls/push/build/pull/rm/inspect → registry_*.c
+ *     export / import                     → export.c
+ *
+ *   Networking & DNS:
+ *     network init/ls/connect/disconnect/inspect/destroy → network.c
+ *     dns ls/update                                      → dns.c
+ *
+ *   Orchestration:
+ *     stack up/down/status/ls → stack.c
+ *
+ *   Security & Checkpoints:
+ *     security ls/inspect → security.c
+ *     checkpoint / restore → checkpoint.c
+ *
+ *   Commit:
+ *     commit <id> <name:tag>   → commit.c
+ *     commit ls / commit history
+ *
+ * JSON MODE:
+ *   Append --json to any supported command to receive machine-readable
+ *   JSON output instead of human-readable text. The Node.js bridge
+ *   (simulatorBridge.js) always passes --json.
+ *
+ * DESIGN:
+ *   No global state is used. Each command handler receives argc/argv
+ *   and is responsible for its own argument validation and error output.
+ *   All handlers return 0 on success, non-zero on failure.
+ */
+
 #define _GNU_SOURCE
 #include "../include/checkpoint.h"
 #include "../include/commit.h"

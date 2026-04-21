@@ -1,7 +1,47 @@
+/*
+ * volume.c — Container Volume Management (Bind-Mount Simulation)
+ *
+ * PURPOSE:
+ *   Implement host-directory bind mounts for containers, allowing a
+ *   directory on the host to appear at a specified path inside the
+ *   container's rootfs. This mirrors the --volume / -v flag in Docker.
+ *
+ * VOLUME SPECIFICATION FORMAT:
+ *   <host_path>:<container_path>[:<mode>]
+ *   Examples:
+ *     /data:/app/data          → read-write bind mount (default)
+ *     /config:/etc/app:ro      → read-only bind mount
+ *
+ * IMPLEMENTATION STRATEGY:
+ *   Since the runtime currently runs as a host-side simulation (no real
+ *   mount namespaces yet), volume_mount() approximates bind-mount behaviour
+ *   by:
+ *     1. Creating the target directory inside the container's rootfs:
+ *        mkdir_p(rootfs + container_path)
+ *     2. Writing a .mycontainer-volume.json marker file at that path
+ *        to record host_path, container_path, and mode for later cleanup.
+ *
+ *   Real bind-mount implementation (post-clone):
+ *     mount(host_path, merged_path + container_path, NULL,
+ *           MS_BIND | (mode=="ro" ? MS_RDONLY : 0), NULL)
+ *
+ * VOLUME STATE:
+ *   Each container's state.json stores a "volumes" JSON array:
+ *     [{"host_path":"/data","container_path":"/app/data","mode":"rw"}]
+ *   volume_list() reads this array from state.json and renders it.
+ *   volume_unmount() removes the marker files during stack teardown.
+ *
+ * FUNCTIONS:
+ *   volume_parse()     — parse "host:container[:mode]" string → Volume struct
+ *   volume_mount()     — create dest dirs + write marker files in rootfs
+ *   volume_unmount()   — remove marker files (called during stack_down)
+ *   volume_list()      — display volume table for a container
+ *   volume_cmd()       — CLI dispatch for `mycontainer volume`
+ */
+
 #define _GNU_SOURCE
 #include "../include/volume.h"
 #include "../include/container.h"
-
 static int volume_parse_array_json(const char *json_str, Volume *volumes, int max_count) {
     JsonArray *arr;
     int count = 0;

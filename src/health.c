@@ -1,8 +1,54 @@
+/*
+ * health.c — Container Health Check Monitoring
+ *
+ * PURPOSE:
+ *   Implement an active health probe system that periodically executes
+ *   a user-defined command inside each container and tracks its outcome
+ *   over time, mirroring Docker's HEALTHCHECK instruction behaviour.
+ *
+ * HEALTH CHECK CONFIGURATION (stored in state.json.healthcheck):
+ *   {
+ *     "command":              "curl -f http://localhost/",
+ *     "interval":             30,    // seconds between probes
+ *     "timeout":              10,    // probe kill timeout (seconds)
+ *     "retries":              3,     // consecutive failures before unhealthy
+ *     "status":               "healthy" | "unhealthy" | "starting" | "disabled",
+ *     "last_check":           "<ISO timestamp>",
+ *     "consecutive_failures": 0
+ *   }
+ *
+ * STATUS STATE MACHINE:
+ *   starting  ──(pass)──► healthy
+ *   starting  ──(fail × retries)──► unhealthy
+ *   healthy   ──(fail × retries)──► unhealthy
+ *   unhealthy ──(pass)──► healthy
+ *   disabled  — no healthcheck configured (command == "")
+ *
+ * HISTORY FILE:
+ *   Each check result is appended as one JSONL line to:
+ *     containers/<id>/health_history.jsonl
+ *   Format: {"status":"healthy","time":"<timestamp>"}
+ *   The frontend reads this file to render the 24h history bar chart.
+ *
+ * MONITOR LOOP (health_monitor_loop):
+ *   Designed to run in a dedicated POSIX thread (pthread_create) after
+ *   the container is started. It calls health_run_check() every `interval`
+ *   seconds and calls health_update_status() with the exit code.
+ *   In the current simulation the loop is not auto-started because real
+ *   process management (clone + execve) is not yet implemented.
+ *
+ * FUNCTIONS:
+ *   health_run_check()     — execute the probe command, return exit code
+ *   health_update_status() — update state.json + append to history file
+ *   health_monitor_loop()  — thread entry point for background monitoring
+ *   health_get_status()    — read + print current health state for a container
+ *   health_cmd()           — CLI dispatch for `mycontainer health`
+ */
+
 #define _GNU_SOURCE
 #include "../include/health.h"
 #include "../include/container.h"
 #include "../include/logs.h"
-
 static int health_get_history_path(const char *container_id, char *path, size_t path_len) {
     if (format_buffer(path, path_len, "%s/%s/health_history.jsonl",
                       CONTAINERS_DIR, container_id) != 0) {

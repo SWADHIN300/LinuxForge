@@ -1,16 +1,47 @@
 /*
- * commit.c — Container commit operations
+ * commit.c — Container Image Commit (OverlayFS Layer Capture)
  *
- * Captures a running container's writable layer (OverlayFS upper/)
- * and merges it with the base image to produce a new registry image.
+ * PURPOSE:
+ *   Persist a running container's filesystem changes as a new image in the
+ *   local registry. This mirrors `docker commit` — it captures the writable
+ *   diff layer (OverlayFS upper/) and merges it with the base image to
+ *   produce a self-contained, layered image tarball.
  *
- * Workflow:
- *   1. Read container state.json → get overlay upper/ path
- *   2. Tar the upper/ (writable changes)
- *   3. Extract base image to temp dir
- *   4. Extract upper layer on top (merge)
- *   5. Re-tar merged result as rootfs.tar.gz
- *   6. Register new image in the registry
+ * HOW OVERLAYFS LAYERING WORKS:
+ *   When a container is created, its rootfs is set up as OverlayFS:
+ *     lower/ ← read-only base image (extracted from registry)
+ *     upper/ ← writable per-container diff (all writes go here)
+ *     work/  ← kernel bookkeeping directory
+ *   On commit, we "squash" upper/ on top of lower/ to get the full state.
+ *
+ * COMMIT ALGORITHM:
+ *   1. Read containers/<id>/state.json:
+ *        → overlay_upper path (for changed files)
+ *        → image field (base image name:tag for unchanged files)
+ *   2. Create a temp directory: /tmp/mycontainer_commit_XXXXXX/
+ *   3. Extract the base image's rootfs.tar.gz into temp/ (the "lower" files).
+ *   4. Extract the container's upper/ directory into temp/
+ *      (overwrites changed files, adds new ones, respects whiteout files).
+ *   5. Tar temp/ → new_image_XXXXXX.tar.gz in /tmp/
+ *   6. Call registry_push(name, tag, temp_tar) to register the new image.
+ *   7. Clean up temp files.
+ *
+ * COMMIT HISTORY:
+ *   Each successful commit appends a line to containers/<id>/commit_history.jsonl:
+ *     {"image":"name:tag","timestamp":"<ISO>","layers":N}
+ *   commit_history_cmd() reads this file to show the commit log.
+ *
+ * JSON OUTPUT MODE (--json):
+ *   Suppresses registry_push() stdout by redirecting to /dev/null during
+ *   the internal call, then prints a single structured JSON result.
+ *   Required when called from the Node.js bridge (simulatorBridge.js).
+ *
+ * FUNCTIONS:
+ *   read_container_state()  — load ContainerState from state.json
+ *   commit_container()      — main commit: merge layers → registry_push
+ *   commit_list_cmd()       — list all images in the registry
+ *   commit_history_cmd()    — list commit log for a specific container
+ *   commit_cmd()            — CLI dispatch for `mycontainer commit`
  */
 
 #define _GNU_SOURCE

@@ -1,3 +1,46 @@
+/*
+ * checkpoint.c — Container Checkpoint & Restore (CRIU-backed)
+ *
+ * PURPOSE:
+ *   Implement live container snapshotting by combining:
+ *     1. A JSON state.json copy  — preserves configuration metadata.
+ *     2. A rootfs.tar.gz archive — freezes the container's filesystem.
+ *     3. An optional CRIU memory dump — freezes in-memory process state.
+ *
+ * CRIU (Checkpoint/Restore In Userspace):
+ *   CRIU is an external Linux tool that serialises a running process tree
+ *   to image files (pages, registers, file descriptors, sockets …).
+ *   On restore it reconstructs the process as if it never stopped.
+ *
+ *   Prerequisites:
+ *     - `criu` binary in PATH
+ *     - Kernel ≥ 3.11 with CONFIG_CHECKPOINT_RESTORE=y
+ *     - CAP_SYS_PTRACE or running as root
+ *     - CONFIG_MEMCG, CONFIG_NET_NS, CONFIG_PID_NS for full support
+ *
+ * CHECKPOINT DIRECTORY LAYOUT:
+ *   <checkpoint_dir>/
+ *     state.json       ← copy of container state at snapshot time
+ *     rootfs.tar.gz    ← tar of container rootfs at snapshot time
+ *     metadata.json    ← snapshot metadata (id, timestamp, criu flag)
+ *     *.img            ← CRIU memory/register dump files (if available)
+ *
+ * RESTORE WORKFLOW:
+ *   1. Read state.json from checkpoint dir → get original config.
+ *   2. Generate a new container ID.
+ *   3. Recreate overlay directory structure.
+ *   4. Extract rootfs.tar.gz into new container's rootfs/.
+ *   5. Save updated state.json for the restored container.
+ *   6. (CRIU) If *.img files present: `criu restore --images-dir <dir>`
+ *
+ * FUNCTIONS:
+ *   checkpoint_create()  — snapshot a running container to a directory
+ *   checkpoint_restore() — bring a container back from a snapshot
+ *   checkpoint_list()    — enumerate all saved checkpoints
+ *   checkpoint_cmd()     — CLI dispatch for `mycontainer checkpoint`
+ *   restore_cmd()        — CLI dispatch for `mycontainer restore`
+ */
+
 #define _GNU_SOURCE
 #include "../include/checkpoint.h"
 #include "../include/export.h"

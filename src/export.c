@@ -1,3 +1,35 @@
+/*
+ * export.c — Container Filesystem Export & Image Import
+ *
+ * PURPOSE:
+ *   Provide import/export operations that bridge the container runtime
+ *   to external tooling and backup workflows.
+ *
+ * EXPORT (container → tar.gz):
+ *   Captures a live container's rootfs into a portable tar.gz archive.
+ *   Uses: tar -czf <output> -C <container.rootfs> .
+ *   The resulting archive is a minimal OCI-compatible rootfs bundle that
+ *   can be used to recreate the container's filesystem state on any host.
+ *
+ * IMPORT (tar.gz → registry image):
+ *   Validates a tar archive and registers it in the local image registry
+ *   under a user-supplied name:tag, making it immediately available for
+ *   use with `mycontainer run --image=<name:tag>`.
+ *
+ *   Validation: tar -tzf <archive> — ensures the archive is well-formed
+ *   before attempting the registry push.
+ *
+ * WORKFLOW DIAGRAM:
+ *   Export:  containers/<id>/rootfs/ → tar.gz → output file
+ *   Import:  tar.gz → validate → registry_push() → registry/images/<name:tag>/
+ *
+ * FUNCTIONS:
+ *   container_export() — tar the running container's rootfs to a file
+ *   container_import() — validate + register a tar archive as a new image
+ *   export_cmd()       — CLI dispatch for `mycontainer export`
+ *   import_cmd()       — CLI dispatch for `mycontainer import`
+ */
+
 #define _GNU_SOURCE
 #include "../include/export.h"
 

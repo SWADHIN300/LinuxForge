@@ -1,8 +1,68 @@
 /*
- * utils.c — Shared utility functions for mycontainer
+ * utils.c — Shared Utility Library for mycontainer
  *
- * Implements file I/O, lightweight JSON parsing/writing,
- * string helpers, directory operations, and ID generation.
+ * PURPOSE:
+ *   Provide all the cross-cutting infrastructure that the rest of the
+ *   engine depends on: file I/O, a purpose-built JSON engine, directory
+ *   management, string helpers, ID generation, and CLI flag parsing.
+ *
+ * SECTIONS:
+ *
+ *   1. FILE I/O
+ *      read_file()       — malloc + slurp entire file into a C string
+ *      write_file()      — atomic overwrite of file with content string
+ *      append_file()     — append string to end of file
+ *      file_exists()     — stat(2)-based regular file existence check
+ *      dir_exists()      — stat(2)-based directory existence check
+ *      copy_file()       — buffered binary file copy (8 KB chunks)
+ *      get_file_size()   — return file size in bytes via stat(2)
+ *      format_size()     — format bytes as "1.2GB"/"512MB"/"4KB" etc.
+ *      format_buffer()   — safe snprintf wrapper; returns -1 on truncation
+ *
+ *   2. DIRECTORY OPERATIONS
+ *      mkdir_p()         — create full directory path (like mkdir -p)
+ *      rmdir_recursive() — recursively remove directory + contents
+ *
+ *   3. JSON ENGINE (purpose-built, no external dependencies)
+ *      Handles flat JSON objects and arrays of flat objects.
+ *      Values are stored internally as strings; is_string=1 means the
+ *      value will be JSON-quoted; is_string=0 means raw (numbers/arrays).
+ *
+ *      Parsing:
+ *        json_parse()             — JSON object string → JsonObject
+ *        json_parse_array()       — JSON array string → JsonArray
+ *        json_parse_string_array()— JSON string array → char[][MAX_LINE]
+ *
+ *      Query / Mutation:
+ *        json_get()       — look up value by key (returns C string or NULL)
+ *        json_set()       — set quoted string key-value pair
+ *        json_set_raw()   — set unquoted (numeric/array/object) key-value
+ *
+ *      Serialisation:
+ *        json_stringify()        — compact one-line JSON object
+ *        json_stringify_pretty() — indented multi-line JSON object
+ *        json_array_stringify()  — compact array of objects
+ *        json_array_stringify_pretty() — indented array of objects
+ *        json_string_array_from_list() — char*[] → JSON string array
+ *
+ *      Array lifecycle:
+ *        json_array_new()    — heap-allocate a JsonArray (capacity MAX_JSON_ARRAY)
+ *        json_array_free()   — release the array and its object storage
+ *        json_array_append() — copy a JsonObject into the array
+ *        json_array_remove() — remove entry at index (shifts remaining left)
+ *
+ *   4. STRING / MISC HELPERS
+ *      generate_id()       — generate a random 12-char lowercase hex ID
+ *      get_timestamp()     — current UTC time as ISO 8601 string
+ *      split_name_tag()    — split "name:tag" → separate name + tag buffers
+ *      str_trim()          — in-place strip leading/trailing whitespace
+ *      strsep_local()      — strsep(3) replacement for platforms missing it
+ *      has_json_flag()     — scan argv[] for "--json" flag
+ *      get_flag_value()    — get value of "--flag=value" from argv[]
+ *
+ * CROSS-PLATFORM NOTES:
+ *   Windows (_WIN32): uses _mkdir() instead of mkdir(2).
+ *   _GNU_SOURCE is required for strsep(3) on glibc.
  */
 
 #define _GNU_SOURCE

@@ -1,9 +1,52 @@
 /*
- * registry.c — Container image registry
+ * registry.c — Local Container Image Registry
  *
- * Manages a local image store: push, pull, list, delete, inspect.
- * Images are stored as rootfs.tar.gz + config.json in registry/images/.
- * An index file registry/images.json tracks all images.
+ * PURPOSE:
+ *   Maintain a local image store for the mycontainer engine, providing
+ *   push, pull, build, list, delete, inspect, sign, and verify operations.
+ *   This is the equivalent of a local Docker registry without a network server.
+ *
+ * DIRECTORY LAYOUT:
+ *   registry/
+ *     images.json               ← master index (array of Image objects)
+ *     images/
+ *       <name>_<tag>/
+ *         rootfs.tar.gz         ← compressed filesystem bundle
+ *         config.json           ← image metadata (runtime, cmd, env, digest …)
+ *
+ * IMAGE INDEX (registry/images.json):
+ *   A JSON array of flat Image objects.  Each entry has:
+ *     id, name, tag, size, layers, created_at, runtime, cmd,
+ *     digest (SHA-256 of rootfs.tar.gz), signature, signed_at,
+ *     rootfs_path, config_path
+ *
+ *   registry_load_index()  reads + deduplicates the array on every load.
+ *   registry_save_index()  serialises the array back to disk atomically.
+ *   registry_dedupe_index() removes older entries for duplicate name:tag.
+ *
+ * KEY OPERATIONS:
+ *   registry_push()   — copy a rootfs tarball into the store + update index
+ *   registry_pull()   — extract a stored image's rootfs to a destination dir
+ *   registry_build()  — tar a build context dir → push as a new image
+ *   registry_delete() — remove image dir + remove entry from index
+ *   registry_find()   — lookup an image by name:tag → Image struct
+ *   registry_list()   — enumerate all images into an Image[] array
+ *   registry_inspect()— print full image metadata (human or JSON)
+ *   registry_sign()   — compute HMAC-style signature over the image digest
+ *   registry_verify() — verify a stored signature against a secret key
+ *
+ * BUILD WORKFLOW (registry_build):
+ *   1. Detect runtime: if context_dir contains package.json → "nodejs"
+ *   2. Guess start command from package.json "start" script or fallback files
+ *   3. tar -czf /tmp/rootfs.tar.gz -C <context_dir> .
+ *   4. registry_push(name, tag, /tmp/rootfs.tar.gz)
+ *   5. registry_update_metadata(name, tag, {runtime, cmd, env})
+ *
+ * DIGEST & SIGNATURE:
+ *   digest  — SHA-256 of rootfs.tar.gz, computed via sha256sum (Linux)
+ *             or certutil (Windows).
+ *   signature — SHA-256 of digest+"\n"+secret_key written to a temp file.
+ *   These fields are stored in images.json and config.json for verification.
  */
 
 #define _GNU_SOURCE

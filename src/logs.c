@@ -1,3 +1,48 @@
+/*
+ * logs.c — Container Log Collection & Streaming
+ *
+ * PURPOSE:
+ *   Capture, store, and serve structured log lines for each container.
+ *   Provides both snapshot reads (past N lines) and live tail (--follow)
+ *   similar to `docker logs --follow`.
+ *
+ * LOG FILE LOCATION & FORMAT:
+ *   logs/<container_id>.log
+ *   One line per entry, formatted as:
+ *     [2024-01-15T10:23:45Z] Message text here
+ *   The bracketed ISO timestamp is written by logs_append_line().
+ *   Pre-existing unformatted lines are handled gracefully in logs_parse_line().
+ *
+ * LOG ROTATION:
+ *   logs_rotate() is called before every write.
+ *   If the log file exceeds 10 MB (LOG_MAX_SIZE = 10 * 1024 * 1024):
+ *     logs/<id>.log   →  renamed to  logs/<id>.log.1
+ *   A new empty file is created on the next write.
+ *   (Only one archived file is kept; .log.1 is overwritten on next rotation.)
+ *
+ * FOLLOW MODE (--follow):
+ *   logs_follow() polls the log file every 500 ms using usleep() and
+ *   ftell()/fseek(). It installs a SIGINT handler to stop gracefully.
+ *   A rotation-safe path: detects file shrinkage (log was rotated) and
+ *   re-opens the file from position 0.
+ *
+ * JSON OUTPUT:
+ *   logs_read() with json_output=1 emits:
+ *     { "container_id": "<id>",
+ *       "total_lines": N,
+ *       "lines": [{"timestamp": "...", "message": "..."}, ...] }
+ *   Used by the Node.js bridge's /api/logs/<id> endpoint.
+ *
+ * FUNCTIONS:
+ *   logs_init()         — create log file + write start header
+ *   logs_append_line()  — write timestamped line(s) to log file
+ *   logs_rotate()       — rotate if > 10 MB
+ *   logs_read()         — read last N lines (or all), optionally as JSON
+ *   logs_follow()       — live-tail: print new lines as they appear
+ *   logs_clear()        — truncate the log file
+ *   logs_cmd()          — CLI dispatch for `mycontainer logs`
+ */
+
 #define _GNU_SOURCE
 #include "../include/logs.h"
 

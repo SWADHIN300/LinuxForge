@@ -1,3 +1,51 @@
+/*
+ * container.c — Container Lifecycle Management
+ *
+ * PURPOSE:
+ *   Implement the full lifecycle of a simulated Linux container:
+ *   creation, state persistence, environment injection, volume mounting,
+ *   network registration, restart policy, and renaming.
+ *
+ * CONTAINER RUNTIME MODEL:
+ *   Each container is represented by a directory on disk:
+ *     containers/<id>/
+ *       state.json          ← full container metadata (status, image, pid,
+ *                              ip, env, volumes, healthcheck, overlay paths)
+ *       overlay/
+ *         lower/            ← read-only base image layer
+ *         upper/            ← writable diff layer (captures all changes)
+ *         work/             ← OverlayFS work dir (kernel bookkeeping)
+ *       rootfs/             ← merged view (lower + upper) mounted here
+ *
+ * OVERLAYFS:
+ *   OverlayFS presents a unified view of `lower` (read-only base image)
+ *   and `upper` (writable per-container layer). Reads from lower if not
+ *   in upper; writes go to upper. `commit` captures upper → new image.
+ *
+ * RESTART POLICY:
+ *   Stored in state.json as "restart_policy": "no"|"always"|"on-failure"
+ *   The should_restart() function checks policy + restart_count < max.
+ *   restart_container() increments the counter and appends a log entry.
+ *
+ * STATE I/O FUNCTIONS:
+ *   container_get_state_path() — build path to state.json
+ *   container_load_state_json()— read + parse state.json → JsonObject
+ *   container_save_state_json()— serialize JsonObject → state.json
+ *   read_container_state()     — high-level: state.json → ContainerState
+ *
+ * KEY FUNCTIONS:
+ *   run_container()            — parse CLI flags, build state, write state.json
+ *   container_rename()         — update name in state + network + DNS
+ *   env_parse()/env_apply()    — collect --env=K=V flags, setenv in process
+ *   container_monitor()        — check/apply restart policy after exit
+ *
+ * SIMULATION NOTE:
+ *   The engine records state and sets up overlay directories but does NOT
+ *   actually exec a namespace-isolated process in the current build.
+ *   The "[STUB] Runtime metadata recorded" message marks this boundary.
+ *   Replace with clone(CLONE_NEWPID|CLONE_NEWNET|…) + execve() to go live.
+ */
+
 #define _GNU_SOURCE
 #include "../include/container.h"
 #include "../include/commit.h"

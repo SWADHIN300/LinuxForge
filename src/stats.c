@@ -1,3 +1,49 @@
+/*
+ * stats.c — Container Resource Usage Statistics
+ *
+ * PURPOSE:
+ *   Collect, persist, and display CPU, memory, and network I/O metrics
+ *   for each container, reading from the Linux cgroup and /proc filesystems.
+ *
+ * DATA SOURCES:
+ *   CPU usage (nanoseconds of CPU time consumed):
+ *     /sys/fs/cgroup/cpu/<id>/cpuacct.usage
+ *     Converted to a percentage: usage_ns / 100_000_000 = %
+ *
+ *   Memory usage / limit (bytes):
+ *     /sys/fs/cgroup/memory/<id>/memory.usage_in_bytes
+ *     /sys/fs/cgroup/memory/<id>/memory.limit_in_bytes
+ *     Falls back to 0 usage / 512 MB limit when cgroup is unavailable.
+ *
+ *   Network I/O (bytes):
+ *     /proc/<pid>/net/dev — parsed for the eth0 interface line
+ *     Column  0 = RX bytes, column 8 = TX bytes (see stats_parse_network_dev)
+ *     Requires the container's PID to be recorded in state.json.
+ *
+ * HISTORY FILE FORMAT:
+ *   stats/<container_id>.db  (append-only JSONL)
+ *   One JSON object per line:
+ *   {"container_id":"abc","cpu_percent":3.14,"memory_usage":1048576,
+ *    "memory_limit":536870912,"net_rx":2048,"net_tx":512,"timestamp":1713715200}
+ *
+ *   stats_history() reads this file and filters to the last N minutes,
+ *   returning the matching datapoints sorted chronologically.
+ *
+ * LIVE WATCH (--watch):
+ *   stats_print_live() uses ANSI escape sequences (\033[2J\033[H) to clear
+ *   the terminal and reprint metrics every second. Press Ctrl-C to exit.
+ *
+ * FUNCTIONS:
+ *   stats_read_cpu()      — read cpuacct.usage → percent
+ *   stats_read_memory()   — read memory cgroup → (usage, limit) bytes
+ *   stats_read_network()  — parse /proc/<pid>/net/dev → (rx, tx) bytes
+ *   stats_collect()       — gather all metrics into ContainerStats struct
+ *   stats_save()          — append sample to .db history file
+ *   stats_history()       — read history file, filter by time window
+ *   stats_print_live()    — continuous terminal refresh (--watch)
+ *   stats_cmd()           — CLI dispatch for `mycontainer stats`
+ */
+
 #define _GNU_SOURCE
 #include "../include/stats.h"
 #include "../include/container.h"

@@ -1,3 +1,46 @@
+/*
+ * dns.c — Container Name Resolution (/etc/hosts management)
+ *
+ * PURPOSE:
+ *   Give every container the ability to resolve peer containers by name
+ *   instead of raw IP address, by generating a synthetic /etc/hosts file
+ *   inside each container's rootfs when containers are created, renamed,
+ *   or stopped.
+ *
+ * STRATEGY:
+ *   This engine does NOT run a full DNS server (e.g. dnsmasq or CoreDNS).
+ *   Instead it takes the simpler approach used by Docker's default bridge:
+ *   write a custom /etc/hosts into each container's rootfs so that all
+ *   peer hostnames resolve to their assigned bridge IPs.
+ *
+ *   Example /etc/hosts generated for container web-01 (172.18.0.2):
+ *     127.0.0.1  localhost
+ *     ::1        localhost ip6-localhost ip6-loopback
+ *     172.18.0.1 host          ← bridge gateway (reaches the host)
+ *     172.18.0.2 web-01        ← self
+ *     172.18.0.3 db-01         ← peer 1
+ *     172.18.0.4 cache-01      ← peer 2
+ *
+ * UPDATE TRIGGER:
+ *   dns_update_hosts() is called after any topology change:
+ *     - container_run()     → new container added
+ *     - container_rename()  → hostname changed
+ *     - checkpoint_restore()→ restored container has a new name
+ *   It refreshes ALL containers' /etc/hosts in one pass.
+ *
+ * INTERNAL DATA FLOW:
+ *   dns_collect_entries() → reads containers/ dir → fills DnsEntry[]
+ *   dns_write_hosts_file() → generates /etc/hosts in each container's rootfs
+ *   dns_update_hosts()    → orchestrates collect → write for all (or one)
+ *
+ * FUNCTIONS:
+ *   dns_update_hosts(id) — regenerate hosts for one container (id=NULL → all)
+ *   dns_add_entry()      — trigger update (entry is derived from state.json)
+ *   dns_remove_entry()   — trigger update (removal handled automatically)
+ *   dns_list()           — print NAME / IP / CONTAINER_ID table
+ *   dns_cmd()            — CLI dispatch for `mycontainer dns`
+ */
+
 #define _GNU_SOURCE
 #include "../include/dns.h"
 #include "../include/container.h"

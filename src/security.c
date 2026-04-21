@@ -1,6 +1,51 @@
+/*
+ * security.c — Seccomp Security Profile Management
+ *
+ * PURPOSE:
+ *   Load and apply per-container Linux seccomp filters from JSON profiles.
+ *   Seccomp (Secure Computing Mode) restricts which system calls a process
+ *   may invoke, reducing the kernel attack surface for untrusted containers.
+ *
+ * SECCOMP FILTER MODEL:
+ *   A seccomp BPF (Berkeley Packet Filter) program is installed in the kernel
+ *   before execve(). Each syscall number is checked against the filter;
+ *   blocked syscalls return EPERM (or SIGSYS, depending on action).
+ *
+ *   Linux seccomp modes:
+ *     SECCOMP_MODE_STRICT  — only read/write/exit/_exit/sigreturn allowed
+ *     SECCOMP_MODE_FILTER  — custom BPF program (this is what we target)
+ *
+ *   Usage:
+ *     prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog);
+ *     /* or in a post-clone child: */
+ *     syscall(SYS_seccomp, SECCOMP_SET_MODE_FILTER, 0, &prog);
+ *
+ * PROFILE JSON FORMAT (stored in security/<name>.json):
+ *   {
+ *     "profile": "strict",
+ *     "blocked_syscalls": ["ptrace", "mount", "reboot", "syslog", "...]
+ *   }
+ *
+ * BUILT-IN PROFILES (security/ directory):
+ *   default.json   — blocks a curated set of dangerous syscalls
+ *   strict.json    — blocks nearly all syscalls except a minimal set
+ *
+ * CURRENT STATE:
+ *   seccomp_apply() validates the profile but does NOT install a real BPF
+ *   filter on the current process — the engine still runs in host context
+ *   (not in a post-clone child process). Once the clone(2) + execve(2)
+ *   path is implemented, install the filter in the child between clone
+ *   and execve using prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &bpf_prog).
+ *
+ * FUNCTIONS:
+ *   seccomp_load_profile()   — parse JSON profile → SecurityProfile struct
+ *   seccomp_apply()          — validate + (stub) install filter
+ *   security_list_profiles() — enumerate security/ dir → print profile list
+ *   security_cmd()           — CLI dispatch for `mycontainer security`
+ */
+
 #define _GNU_SOURCE
 #include "../include/security.h"
-
 static int security_profile_path(const char *profile_name, char *path, size_t path_len) {
     if (!profile_name || !path) return -1;
     if (format_buffer(path, path_len, "%s/%s.json", SECURITY_DIR, profile_name) != 0) {
