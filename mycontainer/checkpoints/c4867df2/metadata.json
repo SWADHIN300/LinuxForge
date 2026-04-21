@@ -1,0 +1,8 @@
+{
+  "container_id": "c4867df2",
+  "name": "web-01",
+  "source_image": "alpine:3.18",
+  "criu_available": false,
+  "criu_dumped": false,
+  "created_at": "2026-04-20T18:16:24Z"
+}

@@ -1,0 +1,39 @@
+{
+  "id": "128c0b57",
+  "name": "restored-web",
+  "status": "restored",
+  "pid": 0,
+  "image": "alpine:3.18",
+  "command": "/bin/sh",
+  "ip": "",
+  "ipv6": "",
+  "runtime_mode": "rootless",
+  "rootless": true,
+  "privileged": false,
+  "cpuset": "",
+  "restart_policy": "no",
+  "restart_count": 0,
+  "max_restarts": 5,
+  "security_profile": "none",
+  "stack_name": "",
+  "env": [],
+  "volumes": [
+
+],
+  "healthcheck": {
+  "command": "",
+  "interval": 30,
+  "timeout": 10,
+  "retries": 3,
+  "status": "disabled",
+  "last_check": "2026-04-20T18:15:47Z",
+  "consecutive_failures": 0
+},
+  "rootfs": "containers/128c0b57/rootfs",
+  "overlay": {
+  "lower": "containers/128c0b57/overlay/lower",
+  "upper": "containers/128c0b57/overlay/upper",
+  "work": "containers/128c0b57/overlay/work"
+},
+  "created_at": "2026-04-20T18:16:24Z"
+}

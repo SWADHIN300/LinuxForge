@@ -1,0 +1,13 @@
+{
+  "profile": "default",
+  "description": "Blocks dangerous host-affecting syscalls",
+  "blocked_syscalls": [
+    "reboot",
+    "kexec_load",
+    "mount",
+    "umount2",
+    "ptrace",
+    "process_vm_readv",
+    "process_vm_writev"
+  ]
+}

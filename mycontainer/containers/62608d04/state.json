@@ -1,0 +1,21 @@
+{
+  "id": "62608d04",
+  "name": "web-01",
+  "status": "running",
+  "pid": 699,
+  "image": "alpine:3.18",
+  "command": "/bin/sh",
+  "ip": "",
+  "ipv6": "",
+  "runtime_mode": "rootless",
+  "rootless": true,
+  "privileged": false,
+  "cpuset": "",
+  "rootfs": "containers/62608d04/rootfs",
+  "overlay": {
+  "lower": "containers/62608d04/overlay/lower",
+  "upper": "containers/62608d04/overlay/upper",
+  "work": "containers/62608d04/overlay/work"
+},
+  "created_at": "2026-04-20T17:39:18Z"
+}

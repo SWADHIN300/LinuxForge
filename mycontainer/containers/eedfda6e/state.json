@@ -1,0 +1,15 @@
+{
+  "id": "eedfda6e",
+  "name": "smoke-01",
+  "status": "running",
+  "pid": 315,
+  "image": "alpine:3.18",
+  "ip": "",
+  "rootfs": "containers/eedfda6e/rootfs",
+  "overlay": {
+    "lower": "containers/eedfda6e/overlay/lower",
+    "upper": "containers/eedfda6e/overlay/upper",
+    "work": "containers/eedfda6e/overlay/work"
+  },
+  "created_at": "2026-04-20T16:55:51Z"
+}

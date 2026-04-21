@@ -1,0 +1,30 @@
+{
+  "profile": "strict",
+  "description": "Applies a broader high-restriction syscall blocklist",
+  "blocked_syscalls": [
+    "reboot",
+    "kexec_load",
+    "mount",
+    "umount2",
+    "ptrace",
+    "process_vm_readv",
+    "process_vm_writev",
+    "swapon",
+    "swapoff",
+    "init_module",
+    "finit_module",
+    "delete_module",
+    "syslog",
+    "chroot",
+    "acct",
+    "sethostname",
+    "setdomainname",
+    "iopl",
+    "ioperm",
+    "create_module",
+    "lookup_dcookie",
+    "open_by_handle_at",
+    "name_to_handle_at",
+    "perf_event_open"
+  ]
+}

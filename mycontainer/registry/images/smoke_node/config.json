@@ -1,0 +1,13 @@
+{
+  "name": "smoke",
+  "tag": "node",
+  "runtime": "nodejs",
+  "cmd": "npm start",
+  "env": ["NODE_ENV=production","PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"],
+  "workdir": "/",
+  "layers": 1,
+  "digest": "da6918f9b8b80e61870a9071317836c551c7fd68a29aeae4e1d8d060a6582a4d",
+  "created_at": "2026-04-20T18:16:24Z",
+  "signature": "36b3add2e41c05c9729faf5844ad5da43c096f460dc19278423ea0d6d4f9f6f5",
+  "signed_at": "2026-04-20T18:16:24Z"
+}

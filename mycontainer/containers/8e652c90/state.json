@@ -1,0 +1,15 @@
+{
+  "id": "8e652c90",
+  "name": "web-01",
+  "status": "running",
+  "pid": 309,
+  "image": "alpine:3.18",
+  "ip": "",
+  "rootfs": "containers/8e652c90/rootfs",
+  "overlay": {
+    "lower": "containers/8e652c90/overlay/lower",
+    "upper": "containers/8e652c90/overlay/upper",
+    "work": "containers/8e652c90/overlay/work"
+  },
+  "created_at": "2026-04-20T16:16:05Z"
+}

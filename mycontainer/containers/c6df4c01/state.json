@@ -1,0 +1,15 @@
+{
+  "id": "c6df4c01",
+  "name": "smoke-02",
+  "status": "running",
+  "pid": 317,
+  "image": "alpine:3.18",
+  "ip": "",
+  "rootfs": "containers/c6df4c01/rootfs",
+  "overlay": {
+    "lower": "containers/c6df4c01/overlay/lower",
+    "upper": "containers/c6df4c01/overlay/upper",
+    "work": "containers/c6df4c01/overlay/work"
+  },
+  "created_at": "2026-04-20T17:09:07Z"
+}

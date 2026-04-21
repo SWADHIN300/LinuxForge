@@ -1,0 +1,39 @@
+{
+  "id": "7c25da7b",
+  "name": "restored-smoke",
+  "status": "restored",
+  "pid": 0,
+  "image": "smoke:test",
+  "command": "/bin/sh --json",
+  "ip": "",
+  "ipv6": "",
+  "runtime_mode": "rootless",
+  "rootless": true,
+  "privileged": false,
+  "cpuset": "",
+  "restart_policy": "no",
+  "restart_count": 0,
+  "max_restarts": 5,
+  "security_profile": "none",
+  "stack_name": "",
+  "env": [],
+  "volumes": [
+
+],
+  "healthcheck": {
+  "command": "echo ok",
+  "interval": 30,
+  "timeout": 10,
+  "retries": 3,
+  "status": "healthy",
+  "last_check": "2026-04-20T18:28:00Z",
+  "consecutive_failures": 0
+},
+  "rootfs": "containers/7c25da7b/rootfs",
+  "overlay": {
+  "lower": "containers/7c25da7b/overlay/lower",
+  "upper": "containers/7c25da7b/overlay/upper",
+  "work": "containers/7c25da7b/overlay/work"
+},
+  "created_at": "2026-04-20T18:28:01Z"
+}

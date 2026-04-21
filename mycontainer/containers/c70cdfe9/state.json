@@ -1,0 +1,21 @@
+{
+  "id": "c70cdfe9",
+  "name": "dual-01",
+  "status": "running",
+  "pid": 689,
+  "image": "alpine:3.18",
+  "command": "/bin/sh",
+  "ip": "",
+  "ipv6": "",
+  "runtime_mode": "privileged",
+  "rootless": false,
+  "privileged": true,
+  "cpuset": "0,1",
+  "rootfs": "containers/c70cdfe9/rootfs",
+  "overlay": {
+  "lower": "containers/c70cdfe9/overlay/lower",
+  "upper": "containers/c70cdfe9/overlay/upper",
+  "work": "containers/c70cdfe9/overlay/work"
+},
+  "created_at": "2026-04-20T17:28:41Z"
+}

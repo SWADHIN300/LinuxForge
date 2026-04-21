@@ -1,0 +1,11 @@
+{
+  "name": "imported",
+  "tag": "test",
+  "runtime": "linux",
+  "cmd": "/bin/sh",
+  "env": ["PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"],
+  "workdir": "/",
+  "layers": 1,
+  "digest": "07d1ee255311aae5d726970be0b2af6c2093657a84d126d06b32010c91ace7a9",
+  "created_at": "2026-04-20T18:16:51Z"
+}

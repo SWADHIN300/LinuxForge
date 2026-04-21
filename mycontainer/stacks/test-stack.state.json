@@ -1,0 +1,7 @@
+{
+  "name": "test-stack",
+  "status": "stopped",
+  "source_file": "stacks/test.json",
+  "containers": ["a854c1a3", "207fa123"],
+  "created_at": "2026-04-20T18:29:16Z"
+}

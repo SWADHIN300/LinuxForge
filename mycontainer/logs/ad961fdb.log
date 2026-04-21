@@ -1,0 +1,4 @@
+=== Container started 2026-04-20T18:28:00Z ===
+[2026-04-20T18:28:00Z] Started /bin/sh --json
+[2026-04-20T18:28:00Z] Using image smoke:test
+[2026-04-20T18:28:00Z] Health check passed

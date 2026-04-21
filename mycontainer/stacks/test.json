@@ -1,0 +1,26 @@
+{
+  "name": "test-stack",
+  "version": "1.0",
+  "containers": [
+    {
+      "name": "web",
+      "image": "alpine:3.18",
+      "env": ["PORT=80", "APP_ENV=prod"],
+      "volumes": [],
+      "network": true,
+      "healthcheck": "echo ok",
+      "restart": "always"
+    },
+    {
+      "name": "db",
+      "image": "alpine:3.18",
+      "env": ["DB_PORT=5432"],
+      "volumes": [],
+      "network": true,
+      "restart": "on-failure"
+    }
+  ],
+  "network": {
+    "connect_all": true
+  }
+}

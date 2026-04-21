@@ -1,0 +1,11 @@
+{
+  "name": "demo",
+  "tag": "node",
+  "runtime": "nodejs",
+  "cmd": "npm start",
+  "env": ["NODE_ENV=production","PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"],
+  "workdir": "/",
+  "layers": 1,
+  "digest": "da6918f9b8b80e61870a9071317836c551c7fd68a29aeae4e1d8d060a6582a4d",
+  "created_at": "2026-04-20T17:39:18Z"
+}
