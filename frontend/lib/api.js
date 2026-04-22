@@ -1,4 +1,12 @@
-const BASE = '/api';
+const RAW_BASE =
+  (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_API_BASE_URL) ||
+  '/api';
+
+const BASE = RAW_BASE.replace(/\/+$/, '');
+
+function apiUrl(path) {
+  return `${BASE}${path}`;
+}
 
 async function request(url, options = {}) {
   const headers = { ...options.headers };
@@ -8,7 +16,7 @@ async function request(url, options = {}) {
     headers['Content-Type'] = 'application/json';
   }
 
-  const res = await fetch(`${BASE}${url}`, {
+  const res = await fetch(apiUrl(url), {
     headers,
     ...options,
   });
@@ -38,7 +46,7 @@ export const logsApi = {
   clear: (id) => api.delete(`/logs/${id}`),
   stream: (id) => {
     if (typeof window === 'undefined') return null;
-    return new EventSource(`${BASE}/logs/${id}/stream`);
+    return new EventSource(apiUrl(`/logs/${id}/stream`));
   },
 };
 
@@ -49,7 +57,7 @@ export const statsApi = {
   all: () => api.get('/stats'),
   stream: (id) => {
     if (typeof window === 'undefined') return null;
-    return new EventSource(`${BASE}/stats/${id}/stream`);
+    return new EventSource(apiUrl(`/stats/${id}/stream`));
   },
 };
 
