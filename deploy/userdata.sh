@@ -2,9 +2,9 @@
 # ============================================================
 # LinuXForge — EC2 User Data Bootstrap Script
 # Runs automatically on first boot as root.
-# Region: ap-south-1 | Instance: t3.xlarge (4vCPU / 16GB RAM)
+# Region: ap-south-1 | Instance: t3.large (2vCPU / 8GB RAM)
 # Cost cap: $28  →  auto-terminates before hitting $30
-# Runs as long as cost < $28, no fixed end date
+# Hourly rate: ~$0.0895/hr | Max runtime: ~313 hours (~13 days)
 # ============================================================
 set -euo pipefail
 exec > /var/log/linuxforge-setup.log 2>&1
@@ -88,9 +88,9 @@ module.exports = {
       cwd: '/opt/linuxforge/frontend',
       script: 'node_modules/.bin/next',
       args: 'start -p 3000',
-      instances: 2,
-      exec_mode: 'cluster',
-      max_memory_restart: '3G',
+      instances: 1,
+      exec_mode: 'fork',
+      max_memory_restart: '2G',
       env: {
         NODE_ENV: 'production',
         PORT: 3000
@@ -258,7 +258,7 @@ cat > /opt/linuxforge/deploy/cost_watchdog.sh << 'WATCHDOG'
 LOG=/var/log/linuxforge-cost.log
 LAUNCH_EPOCH_FILE=/opt/linuxforge/deploy/.launch_epoch
 COST_LIMIT=28          # Terminate when estimated cost hits $28
-HOURLY_RATE=0.1935     # t3.xlarge + IPv4 + EBS in ap-south-1
+HOURLY_RATE=0.0895     # t3.large + IPv4 + EBS in ap-south-1
 
 if [ ! -f "$LAUNCH_EPOCH_FILE" ]; then
   echo "[$(date -u)] ERROR: launch epoch file missing" >> $LOG
@@ -322,7 +322,7 @@ cat > /etc/motd << MOTD
   C-Engine : /opt/linuxforge/mycontainer
 
   COST CAP : \$28 — server auto-terminates if spend >= \$28
-  Rate     : ~\$0.1935/hr  |  Max runtime: ~144 hours (~6 days)
+  Rate     : ~\$0.0895/hr  |  Max runtime: ~313 hours (~13 days)
   Watchdog : runs every hour (check: crontab -l)
 ============================================================
 MOTD
