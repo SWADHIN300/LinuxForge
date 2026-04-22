@@ -12,7 +12,7 @@ SRCS = src/main.c src/container.c \
        src/dns.c src/export.c \
        src/checkpoint.c
 
-TARGET = mycontainer
+TARGET = mycontainer_linux
 SMOKE_ID_FILE = .test-smoke-id
 SMOKE_CHECKPOINT_DIR = checkpoints/test-smoke
 
@@ -45,40 +45,40 @@ test-smoke-setup: $(TARGET)
 	echo "Smoke container: $$(cat $(SMOKE_ID_FILE))"
 
 test-logs: test-smoke-setup
-	./mycontainer logs $$(cat $(SMOKE_ID_FILE)) --tail=10
+	./$(TARGET) logs $$(cat $(SMOKE_ID_FILE)) --tail=10
 
 test-stats: test-smoke-setup
-	./mycontainer stats $$(cat $(SMOKE_ID_FILE)) --json
+	./$(TARGET) stats $$(cat $(SMOKE_ID_FILE)) --json
 
 test-health: test-smoke-setup
-	./mycontainer health $$(cat $(SMOKE_ID_FILE)) --run --json
+	./$(TARGET) health $$(cat $(SMOKE_ID_FILE)) --run --json
 
 test-stack: $(TARGET)
-	./mycontainer stack up stacks/test.json
-	./mycontainer stack status test-stack
-	./mycontainer stack down test-stack
+	./$(TARGET) stack up stacks/test.json
+	./$(TARGET) stack status test-stack
+	./$(TARGET) stack down test-stack
 
 test-dns: $(TARGET)
-	./mycontainer dns ls
+	./$(TARGET) dns ls
 
 test-network: $(TARGET)
 	bash ./test_network.sh
 
 test-checkpoint: test-smoke-setup
 	rm -rf $(SMOKE_CHECKPOINT_DIR)
-	./mycontainer checkpoint $$(cat $(SMOKE_ID_FILE)) ./$(SMOKE_CHECKPOINT_DIR)
-	./mycontainer restore ./$(SMOKE_CHECKPOINT_DIR) restored-smoke
+	./$(TARGET) checkpoint $$(cat $(SMOKE_ID_FILE)) ./$(SMOKE_CHECKPOINT_DIR)
+	./$(TARGET) restore ./$(SMOKE_CHECKPOINT_DIR) restored-smoke
 
 test-registry: $(TARGET)
-	./mycontainer image ls --json
+	./$(TARGET) image ls --json
 
 test-commit: $(TARGET)
-	./mycontainer commit ls --json
+	./$(TARGET) commit ls --json
 
 test-all: test-registry test-commit test-logs test-stats test-health test-stack test-dns test-checkpoint
 
 demo-run: $(TARGET)
-	./mycontainer run --name=demo-01 /bin/sh
+	./$(TARGET) run --name=demo-01 /bin/sh
 
 demo-full: $(TARGET)
 	mkdir -p /tmp/demo_rootfs/bin /tmp/demo_rootfs/etc

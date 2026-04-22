@@ -10,9 +10,14 @@
 
 /*
  * Set up the root filesystem for a container.
- * Performs chroot and mounts /proc, /sys, etc.
+ * Mounts the container overlay plus /proc, /sys, and /dev inside the
+ * provided merged rootfs path. This must run in the container's mount
+ * namespace before the payload execs.
  * Returns 0 on success, -1 on error.
  */
-int setup_rootfs(const char *rootfs_path);
+int setup_rootfs(const char *rootfs_path,
+                 const char *lowerdir,
+                 const char *upperdir,
+                 const char *workdir);
 
 #endif /* FS_H */

@@ -87,6 +87,32 @@ static int health_read_config(const char *container_id, JsonObject *state, JsonO
     return health_read_config_with_options(container_id, state, health, 0);
 }
 
+static char *health_shell_escape(const char *value) {
+    size_t len = 0;
+    char *out;
+    size_t pos = 0;
+
+    if (!value) return strdup("");
+
+    for (const char *p = value; *p; p++) {
+        len += (*p == '\'') ? 4 : 1;
+    }
+
+    out = malloc(len + 1);
+    if (!out) return NULL;
+
+    for (const char *p = value; *p; p++) {
+        if (*p == '\'') {
+            memcpy(out + pos, "'\\''", 4);
+            pos += 4;
+        } else {
+            out[pos++] = *p;
+        }
+    }
+    out[pos] = '\0';
+    return out;
+}
+
 static char *health_history_json(const char *container_id) {
     char path[MAX_PATH_LEN];
     char *data;
@@ -202,6 +228,7 @@ int health_run_check(const char *container_id) {
     JsonObject health;
     const char *command;
     char cmd[MAX_CMD_LEN];
+    char *escaped_command = NULL;
     if (health_read_config(container_id, &state, &health) != 0) return -1;
 
     command = json_get(&health, "command");
@@ -220,21 +247,53 @@ int health_run_check(const char *container_id) {
     timeout_value = json_get(&health, "timeout");
     if (timeout_value) timeout_seconds = atoi(timeout_value);
 
-    if (timeout_seconds > 0) {
+    escaped_command = health_shell_escape(command);
+    if (!escaped_command) return -1;
+
+    if (json_get(&state, "pid") && atoi(json_get(&state, "pid")) > 0 &&
+        json_get(&state, "rootfs") && strlen(json_get(&state, "rootfs")) > 0) {
+        if (timeout_seconds > 0) {
+            if (format_buffer(cmd, sizeof(cmd),
+                              "timeout %d nsenter --target %s --mount --uts --ipc --net --pid -- "
+                              "chroot \"%s\" /bin/sh -lc '%s' >/dev/null 2>&1",
+                              timeout_seconds,
+                              json_get(&state, "pid"),
+                              json_get(&state, "rootfs"),
+                              escaped_command) != 0) {
+                free(escaped_command);
+                return -1;
+            }
+        } else {
+            if (format_buffer(cmd, sizeof(cmd),
+                              "nsenter --target %s --mount --uts --ipc --net --pid -- "
+                              "chroot \"%s\" /bin/sh -lc '%s' >/dev/null 2>&1",
+                              json_get(&state, "pid"),
+                              json_get(&state, "rootfs"),
+                              escaped_command) != 0) {
+                free(escaped_command);
+                return -1;
+            }
+        }
+    } else if (timeout_seconds > 0) {
         if (format_buffer(cmd, sizeof(cmd),
                           "timeout %d sh -lc '%s' >/dev/null 2>&1",
-                          timeout_seconds, command) != 0) {
+                          timeout_seconds, escaped_command) != 0) {
+            free(escaped_command);
             return -1;
         }
     } else {
         if (format_buffer(cmd, sizeof(cmd),
-                          "sh -lc '%s' >/dev/null 2>&1", command) != 0) {
+                          "sh -lc '%s' >/dev/null 2>&1", escaped_command) != 0) {
+            free(escaped_command);
             return -1;
         }
     }
 #endif
-
-    return system(cmd);
+    {
+        int rc = system(cmd);
+        free(escaped_command);
+        return rc;
+    }
 }
 
 int health_update_status(const char *container_id, int exit_code) {

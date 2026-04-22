@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import StatCard from '@/components/StatCard';
 import StatusDot from '@/components/StatusDot';
 import HealthBadge from '@/components/HealthBadge';
-import { containersApi, healthApi } from '@/lib/api';
+import { containersApi, healthApi, registryApi } from '@/lib/api';
 
 /* ── Demo data ─────────────────────────────────────────────────── */
 const DEMO_CONTAINERS = [
@@ -51,15 +51,76 @@ function NetNode({ icon, label, primary }) {
 export default function DashboardPage() {
   const [containers, setContainers] = useState(DEMO_CONTAINERS);
   const [healthData, setHealthData]  = useState([]);
+  const [images, setImages] = useState([]);
+  const [runOpen, setRunOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [notice, setNotice] = useState('');
+  const [error, setError] = useState('');
+  const [runForm, setRunForm] = useState({
+    name: '',
+    image: '',
+    command: '',
+    rootless: true,
+    privileged: false,
+    cpuset: '',
+  });
+
+  const loadContainers = () =>
+    containersApi.list()
+      .then((d) => { if (Array.isArray(d)) setContainers(d); })
+      .catch(() => {});
 
   useEffect(() => {
-    containersApi.list()
-      .then((d) => { if (Array.isArray(d) && d.length > 0) setContainers(d); })
-      .catch(() => {});
+    loadContainers();
     healthApi.all()
       .then((d) => { if (Array.isArray(d)) setHealthData(d); })
       .catch(() => {});
+    registryApi.list()
+      .then((d) => {
+        const list = Array.isArray(d) ? d : d?.images || [];
+        setImages(list);
+        if (list.length > 0) {
+          setRunForm((prev) => ({
+            ...prev,
+            image: prev.image || `${list[0].name}:${list[0].tag}`,
+          }));
+        }
+      })
+      .catch(() => {});
   }, []);
+
+  const handleRunContainer = async () => {
+    setError('');
+    setNotice('');
+
+    if (!runForm.image.trim()) {
+      setError('Choose an image before launching a container.');
+      return;
+    }
+
+    setCreating(true);
+    try {
+      const result = await containersApi.run({
+        ...runForm,
+        rootless: runForm.privileged ? false : runForm.rootless,
+      });
+      await loadContainers();
+      setNotice(`Container ${result.name || result.id} started from ${runForm.image}.`);
+      setRunOpen(false);
+      setRunForm((prev) => ({
+        ...prev,
+        name: '',
+        command: '',
+        cpuset: '',
+        rootless: true,
+        privileged: false,
+      }));
+    } catch (err) {
+      setError(err.message || 'Failed to start container.');
+    } finally {
+      setCreating(false);
+    }
+  };
 
   const running = containers.filter((c) => c.status === 'running');
   const stopped = containers.filter((c) => c.status !== 'running');
@@ -68,12 +129,23 @@ export default function DashboardPage() {
     <div className="space-y-8 animate-fade-in">
 
       {/* ── Page Header ─────────────────────────────────────────── */}
-      <header>
-        <h1 className="font-['Space_Grotesk'] text-4xl font-bold text-[#e5e1e4] tracking-tight">Dashboard</h1>
-        <p className="text-[#c2c6d6] mt-1 text-lg">
-          Good morning — {running.length} container{running.length !== 1 ? 's' : ''} running
-        </p>
+      <header className="flex items-end justify-between gap-6">
+        <div>
+          <h1 className="font-['Space_Grotesk'] text-4xl font-bold text-[#e5e1e4] tracking-tight">Dashboard</h1>
+          <p className="text-[#c2c6d6] mt-1 text-lg">
+            Good morning — {running.length} container{running.length !== 1 ? 's' : ''} running
+          </p>
+        </div>
+        <button onClick={() => setRunOpen(true)} className="bg-gradient-to-r from-[#adc6ff] to-[#4d8eff] text-[#002e6a] font-semibold px-6 py-3 rounded-xl shadow-lg active:scale-95 transition-all flex items-center gap-2">
+          <span className="material-symbols-outlined">add</span>Run Container
+        </button>
       </header>
+
+      {(error || notice) && (
+        <div className={`rounded-xl border px-5 py-4 text-sm ${error ? 'border-[#ffb4ab]/30 bg-[#93000a]/10 text-[#ffdad6]' : 'border-[#4cd7f6]/20 bg-[#009eb9]/10 text-[#e6f7ff]'}`}>
+          {error || notice}
+        </div>
+      )}
 
       {/* ── Row 1: Primary Stat Cards ───────────────────────────── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -86,8 +158,8 @@ export default function DashboardPage() {
         />
         <StatCard
           label="Images"
-          value="12"
-          sub="4.2 GB used"
+          value={String(images.length || 0).padStart(2, '0')}
+          sub="Registry-ready builds"
           icon="layers"
           accent="none"
         />
@@ -306,6 +378,66 @@ export default function DashboardPage() {
 
         </div>
       </div>
+
+      {runOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-[#131315]/80 backdrop-blur-md" onClick={() => setRunOpen(false)} />
+          <div className="relative w-full max-w-2xl bg-[#1c1b1d] rounded-2xl shadow-2xl overflow-hidden border border-[#424754]/30">
+            <div className="p-6 border-b border-[#424754]/20 flex justify-between items-center">
+              <div>
+                <h2 className="font-['Space_Grotesk'] text-2xl font-bold text-[#e5e1e4]">Run New Container</h2>
+                <p className="text-xs text-[#c2c6d6] font-mono">Launch a new runtime instance from the local registry.</p>
+              </div>
+              <button onClick={() => setRunOpen(false)} className="text-[#8c909f] hover:text-[#e5e1e4]"><span className="material-symbols-outlined">close</span></button>
+            </div>
+            <div className="p-6 space-y-5">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-[#8c909f] uppercase tracking-widest mb-2">Container Name</label>
+                  <input value={runForm.name} onChange={(e) => setRunForm((prev) => ({ ...prev, name: e.target.value }))} placeholder="e.g. demo-web" className="w-full bg-[#0e0e10] border border-[#424754] rounded-lg px-4 py-3 font-mono text-sm text-[#adc6ff] focus:outline-none focus:border-[#adc6ff]/50 transition-all" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-[#8c909f] uppercase tracking-widest mb-2">Image</label>
+                  <select value={runForm.image} onChange={(e) => setRunForm((prev) => ({ ...prev, image: e.target.value }))} className="w-full bg-[#0e0e10] border border-[#424754] rounded-lg px-4 py-3 font-mono text-sm text-[#e5e1e4] focus:outline-none focus:border-[#adc6ff]/50 transition-all">
+                    {images.length === 0 && <option value="">No images available</option>}
+                    {images.map((image) => (
+                      <option key={`${image.name}:${image.tag}`} value={`${image.name}:${image.tag}`}>
+                        {image.name}:{image.tag}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-[#8c909f] uppercase tracking-widest mb-2">Command</label>
+                  <input value={runForm.command} onChange={(e) => setRunForm((prev) => ({ ...prev, command: e.target.value }))} placeholder="Optional override, e.g. npm start" className="w-full bg-[#0e0e10] border border-[#424754] rounded-lg px-4 py-3 font-mono text-sm text-[#e5e1e4] focus:outline-none focus:border-[#adc6ff]/50 transition-all" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-[#8c909f] uppercase tracking-widest mb-2">CPU Set</label>
+                  <input value={runForm.cpuset} onChange={(e) => setRunForm((prev) => ({ ...prev, cpuset: e.target.value }))} placeholder="Optional, e.g. 0-1" className="w-full bg-[#0e0e10] border border-[#424754] rounded-lg px-4 py-3 font-mono text-sm text-[#e5e1e4] focus:outline-none focus:border-[#adc6ff]/50 transition-all" />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <button onClick={() => setRunForm((prev) => ({ ...prev, rootless: !prev.rootless, privileged: prev.rootless ? false : prev.privileged }))} className={`flex items-center justify-between rounded-xl border px-4 py-3 text-sm transition-all ${runForm.rootless ? 'border-[#4cd7f6]/40 bg-[#4cd7f6]/10 text-[#e6f7ff]' : 'border-[#424754] bg-[#0e0e10] text-[#8c909f]'}`}>
+                  <span>Rootless mode</span>
+                  <span className="font-mono text-xs">{runForm.rootless ? 'ON' : 'OFF'}</span>
+                </button>
+                <button onClick={() => setRunForm((prev) => ({ ...prev, privileged: !prev.privileged, rootless: prev.privileged ? prev.rootless : false }))} className={`flex items-center justify-between rounded-xl border px-4 py-3 text-sm transition-all ${runForm.privileged ? 'border-[#ffcf99]/40 bg-[#ffcf99]/10 text-[#fff0db]' : 'border-[#424754] bg-[#0e0e10] text-[#8c909f]'}`}>
+                  <span>Privileged mode</span>
+                  <span className="font-mono text-xs">{runForm.privileged ? 'ON' : 'OFF'}</span>
+                </button>
+              </div>
+              <div className="flex items-center gap-4">
+                <button onClick={handleRunContainer} disabled={creating} className="flex-1 bg-gradient-to-r from-[#adc6ff] to-[#4d8eff] text-[#002e6a] font-bold py-3 rounded-xl active:scale-95 transition-all disabled:opacity-60">
+                  {creating ? 'Launching...' : 'Launch Container'}
+                </button>
+                <button onClick={() => setRunOpen(false)} disabled={creating} className="px-6 py-3 border border-[#424754] rounded-xl text-[#8c909f] hover:text-[#e5e1e4] hover:bg-[#2a2a2c] transition-all disabled:opacity-50">Cancel</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

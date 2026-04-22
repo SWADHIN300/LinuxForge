@@ -882,7 +882,11 @@ int network_cleanup(const char *container_id) {
     char cmd[MAX_CMD_LEN];
     snprintf(cmd, sizeof(cmd),
              "ip link delete %s 2>/dev/null", c->veth_host);
-    system(cmd);
+    if (system(cmd) != 0) {
+        snprintf(cmd, sizeof(cmd),
+                 "ip link delete %s 2>/dev/null", c->veth_container);
+        system(cmd);
+    }
 
     /* Remove this container from other containers' connected_to lists */
     for (int i = 0; i < state.connection_count; i++) {

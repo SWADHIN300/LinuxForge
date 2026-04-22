@@ -42,6 +42,12 @@
 #define _GNU_SOURCE
 #include "../include/volume.h"
 #include "../include/container.h"
+
+#include <errno.h>
+#include <fcntl.h>
+#include <sys/mount.h>
+#include <unistd.h>
+
 static int volume_parse_array_json(const char *json_str, Volume *volumes, int max_count) {
     JsonArray *arr;
     int count = 0;
@@ -120,14 +126,42 @@ int volume_parse(const char *volume_str, Volume *vol) {
     return 0;
 }
 
+static int volume_parent_dir(const char *path, char *parent, size_t parent_len) {
+    const char *slash;
+    size_t len;
+
+    if (!path || !parent || parent_len == 0) return -1;
+    slash = strrchr(path, '/');
+    if (!slash || slash == path) {
+        strncpy(parent, "/", parent_len - 1);
+        parent[parent_len - 1] = '\0';
+        return 0;
+    }
+
+    len = (size_t) (slash - path);
+    if (len >= parent_len) return -1;
+    memcpy(parent, path, len);
+    parent[len] = '\0';
+    return 0;
+}
+
+static int volume_touch(const char *path) {
+    int fd = open(path, O_WRONLY | O_CREAT, 0644);
+    if (fd < 0) return -1;
+    close(fd);
+    return 0;
+}
+
 int volume_mount(Volume *volumes, int count, const char *rootfs_path) {
     if (!rootfs_path) return -1;
 
     for (int i = 0; i < count; i++) {
         char dest[MAX_PATH_LEN];
+        char parent[MAX_PATH_LEN];
         char marker[MAX_PATH_LEN];
         JsonObject meta;
         char *json;
+        int source_is_dir;
 
         if (format_buffer(dest, sizeof(dest), "%s%s", rootfs_path,
                           volumes[i].container_path) != 0) {
@@ -135,9 +169,28 @@ int volume_mount(Volume *volumes, int count, const char *rootfs_path) {
             return -1;
         }
 
-        if (mkdir_p(dest) != 0) return -1;
+        source_is_dir = dir_exists(volumes[i].host_path);
+        if (source_is_dir) {
+            if (mkdir_p(dest) != 0) return -1;
+        } else {
+            if (volume_parent_dir(dest, parent, sizeof(parent)) != 0) return -1;
+            if (mkdir_p(parent) != 0) return -1;
+            if (volume_touch(dest) != 0) return -1;
+        }
 
-        if (format_buffer(marker, sizeof(marker), "%s/.mycontainer-volume.json", dest) != 0) {
+        if (mount(volumes[i].host_path, dest, NULL, MS_BIND | MS_REC, NULL) != 0) {
+            return -1;
+        }
+
+        if (strcmp(volumes[i].mode, "ro") == 0) {
+            if (mount(NULL, dest, NULL,
+                      MS_BIND | MS_REMOUNT | MS_RDONLY | MS_REC, NULL) != 0) {
+                return -1;
+            }
+        }
+
+        if (format_buffer(marker, sizeof(marker), "%s/.mycontainer-volume.json",
+                          source_is_dir ? dest : parent) != 0) {
             fprintf(stderr, "Error: volume marker path too long\n");
             return -1;
         }

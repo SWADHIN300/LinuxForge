@@ -1,51 +1,113 @@
 /*
  * security.c — Seccomp Security Profile Management
  *
- * PURPOSE:
- *   Load and apply per-container Linux seccomp filters from JSON profiles.
- *   Seccomp (Secure Computing Mode) restricts which system calls a process
- *   may invoke, reducing the kernel attack surface for untrusted containers.
- *
- * SECCOMP FILTER MODEL:
- *   A seccomp BPF (Berkeley Packet Filter) program is installed in the kernel
- *   before execve(). Each syscall number is checked against the filter;
- *   blocked syscalls return EPERM (or SIGSYS, depending on action).
- *
- *   Linux seccomp modes:
- *     SECCOMP_MODE_STRICT  — only read/write/exit/_exit/sigreturn allowed
- *     SECCOMP_MODE_FILTER  — custom BPF program (this is what we target)
- *
- *   Usage:
- *     prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog);
- *     /* or in a post-clone child: */
- *     syscall(SYS_seccomp, SECCOMP_SET_MODE_FILTER, 0, &prog);
- *
- * PROFILE JSON FORMAT (stored in security/<name>.json):
- *   {
- *     "profile": "strict",
- *     "blocked_syscalls": ["ptrace", "mount", "reboot", "syslog", "...]
- *   }
- *
- * BUILT-IN PROFILES (security/ directory):
- *   default.json   — blocks a curated set of dangerous syscalls
- *   strict.json    — blocks nearly all syscalls except a minimal set
- *
- * CURRENT STATE:
- *   seccomp_apply() validates the profile but does NOT install a real BPF
- *   filter on the current process — the engine still runs in host context
- *   (not in a post-clone child process). Once the clone(2) + execve(2)
- *   path is implemented, install the filter in the child between clone
- *   and execve using prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &bpf_prog).
- *
- * FUNCTIONS:
- *   seccomp_load_profile()   — parse JSON profile → SecurityProfile struct
- *   seccomp_apply()          — validate + (stub) install filter
- *   security_list_profiles() — enumerate security/ dir → print profile list
- *   security_cmd()           — CLI dispatch for `mycontainer security`
+ * Loads JSON blocklists from the security directory and installs a simple
+ * seccomp filter in the container payload right before exec.
  */
 
 #define _GNU_SOURCE
 #include "../include/security.h"
+
+#include <errno.h>
+#include <linux/filter.h>
+#include <linux/seccomp.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/prctl.h>
+#include <sys/syscall.h>
+
+typedef struct {
+    const char *name;
+    int number;
+} SecuritySyscall;
+
+static int security_syscall_number(const char *name) {
+    static const SecuritySyscall table[] = {
+#ifdef __NR_reboot
+        { "reboot", __NR_reboot },
+#endif
+#ifdef __NR_kexec_load
+        { "kexec_load", __NR_kexec_load },
+#endif
+#ifdef __NR_mount
+        { "mount", __NR_mount },
+#endif
+#ifdef __NR_umount2
+        { "umount2", __NR_umount2 },
+#endif
+#ifdef __NR_ptrace
+        { "ptrace", __NR_ptrace },
+#endif
+#ifdef __NR_process_vm_readv
+        { "process_vm_readv", __NR_process_vm_readv },
+#endif
+#ifdef __NR_process_vm_writev
+        { "process_vm_writev", __NR_process_vm_writev },
+#endif
+#ifdef __NR_swapon
+        { "swapon", __NR_swapon },
+#endif
+#ifdef __NR_swapoff
+        { "swapoff", __NR_swapoff },
+#endif
+#ifdef __NR_init_module
+        { "init_module", __NR_init_module },
+#endif
+#ifdef __NR_finit_module
+        { "finit_module", __NR_finit_module },
+#endif
+#ifdef __NR_delete_module
+        { "delete_module", __NR_delete_module },
+#endif
+#ifdef __NR_syslog
+        { "syslog", __NR_syslog },
+#endif
+#ifdef __NR_chroot
+        { "chroot", __NR_chroot },
+#endif
+#ifdef __NR_acct
+        { "acct", __NR_acct },
+#endif
+#ifdef __NR_sethostname
+        { "sethostname", __NR_sethostname },
+#endif
+#ifdef __NR_setdomainname
+        { "setdomainname", __NR_setdomainname },
+#endif
+#ifdef __NR_iopl
+        { "iopl", __NR_iopl },
+#endif
+#ifdef __NR_ioperm
+        { "ioperm", __NR_ioperm },
+#endif
+#ifdef __NR_create_module
+        { "create_module", __NR_create_module },
+#endif
+#ifdef __NR_lookup_dcookie
+        { "lookup_dcookie", __NR_lookup_dcookie },
+#endif
+#ifdef __NR_open_by_handle_at
+        { "open_by_handle_at", __NR_open_by_handle_at },
+#endif
+#ifdef __NR_name_to_handle_at
+        { "name_to_handle_at", __NR_name_to_handle_at },
+#endif
+#ifdef __NR_perf_event_open
+        { "perf_event_open", __NR_perf_event_open },
+#endif
+        { NULL, -1 }
+    };
+
+    for (int i = 0; table[i].name != NULL; i++) {
+        if (strcmp(table[i].name, name) == 0) {
+            return table[i].number;
+        }
+    }
+
+    return -1;
+}
 static int security_profile_path(const char *profile_name, char *path, size_t path_len) {
     if (!profile_name || !path) return -1;
     if (format_buffer(path, path_len, "%s/%s.json", SECURITY_DIR, profile_name) != 0) {
@@ -106,16 +168,51 @@ int seccomp_load_profile(const char *profile_name, SecurityProfile *profile) {
 
 int seccomp_apply(const char *profile_name) {
     SecurityProfile profile;
+    struct sock_filter *filter = NULL;
+    struct sock_fprog prog;
+    int count = 0;
+    int idx = 0;
 
     if (!profile_name || strcmp(profile_name, "none") == 0) return 0;
     if (seccomp_load_profile(profile_name, &profile) != 0) return -1;
 
-    /*
-     * The current simulator run path is still a host-side stub rather than a
-     * dedicated post-clone/pre-exec child process. We validate the requested
-     * profile here so the CLI/runtime state is consistent, but we intentionally
-     * do not install a seccomp filter on the current control process.
-     */
+    for (int i = 0; i < profile.blocked_count; i++) {
+        if (security_syscall_number(profile.blocked[i]) >= 0) {
+            count++;
+        }
+    }
+
+    filter = calloc((size_t) (count * 2 + 2), sizeof(*filter));
+    if (!filter) return -1;
+
+    filter[idx++] = (struct sock_filter) BPF_STMT(BPF_LD | BPF_W | BPF_ABS,
+                                                  (unsigned int) offsetof(struct seccomp_data, nr));
+
+    for (int i = 0; i < profile.blocked_count; i++) {
+        int nr = security_syscall_number(profile.blocked[i]);
+        if (nr < 0) continue;
+        filter[idx++] = (struct sock_filter) BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K,
+                                                      (unsigned int) nr, 0, 1);
+        filter[idx++] = (struct sock_filter) BPF_STMT(BPF_RET | BPF_K,
+                                                      SECCOMP_RET_ERRNO | (EPERM & SECCOMP_RET_DATA));
+    }
+
+    filter[idx++] = (struct sock_filter) BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW);
+
+    prog.len = (unsigned short) idx;
+    prog.filter = filter;
+
+    if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0) {
+        free(filter);
+        return -1;
+    }
+
+    if (syscall(SYS_seccomp, SECCOMP_SET_MODE_FILTER, 0, &prog) != 0) {
+        free(filter);
+        return -1;
+    }
+
+    free(filter);
     return 0;
 }
 

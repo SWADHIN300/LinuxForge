@@ -87,6 +87,7 @@ int checkpoint_create(const char *container_id, const char *checkpoint_dir, int 
     char state_dest[MAX_PATH_LEN];
     char rootfs_archive[MAX_PATH_LEN];
     char metadata_path[MAX_PATH_LEN];
+    char merge_dir[] = "/tmp/mycontainer_checkpoint_XXXXXX";
     char export_cmd[MAX_CMD_LEN];
     JsonObject meta;
     char *json;
@@ -105,12 +106,42 @@ int checkpoint_create(const char *container_id, const char *checkpoint_dir, int 
     }
 
     if (copy_file(state_src, state_dest) != 0) return -1;
-    if (format_buffer(export_cmd, sizeof(export_cmd),
-                      "tar -czf \"%s\" -C \"%s\" .",
-                      rootfs_archive, state.rootfs) != 0) {
+
+    if (!mkdtemp(merge_dir)) {
         return -1;
     }
-    if (system(export_cmd) != 0) return -1;
+
+    if (strlen(state.overlay_lower) > 0 && dir_exists(state.overlay_lower)) {
+        if (format_buffer(export_cmd, sizeof(export_cmd),
+                          "cp -a \"%s\"/. \"%s\"/ 2>/dev/null",
+                          state.overlay_lower, merge_dir) != 0) {
+            rmdir_recursive(merge_dir);
+            return -1;
+        }
+        system(export_cmd);
+    }
+
+    if (strlen(state.overlay_upper) > 0 && dir_exists(state.overlay_upper)) {
+        if (format_buffer(export_cmd, sizeof(export_cmd),
+                          "cp -a \"%s\"/. \"%s\"/ 2>/dev/null",
+                          state.overlay_upper, merge_dir) != 0) {
+            rmdir_recursive(merge_dir);
+            return -1;
+        }
+        system(export_cmd);
+    }
+
+    if (format_buffer(export_cmd, sizeof(export_cmd),
+                      "tar -czf \"%s\" -C \"%s\" .",
+                      rootfs_archive, merge_dir) != 0) {
+        rmdir_recursive(merge_dir);
+        return -1;
+    }
+    if (system(export_cmd) != 0) {
+        rmdir_recursive(merge_dir);
+        return -1;
+    }
+    rmdir_recursive(merge_dir);
 
     if (checkpoint_has_criu() && state.pid > 0) {
         char cmd[MAX_CMD_LEN];
@@ -205,7 +236,7 @@ int checkpoint_restore(const char *checkpoint_dir, const char *new_name, int jso
     if (file_exists(rootfs_archive)) {
         if (format_buffer(cmd, sizeof(cmd),
                           "tar -xzf \"%s\" -C \"%s\"",
-                          rootfs_archive, rootfs) != 0) {
+                          rootfs_archive, overlay_lower) != 0) {
             return -1;
         }
         system(cmd);

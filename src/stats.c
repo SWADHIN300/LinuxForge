@@ -62,6 +62,31 @@ static int stats_read_long_file(const char *path, long *value) {
     return 0;
 }
 
+static int stats_read_named_value(const char *path, const char *name, long *value) {
+    char *data;
+    char *line;
+    char *cursor;
+
+    if (!path || !name || !value || !file_exists(path)) return -1;
+
+    data = read_file(path);
+    if (!data) return -1;
+    cursor = data;
+
+    while ((line = strsep_local(&cursor, "\n")) != NULL) {
+        char key[64];
+        long parsed;
+        if (sscanf(line, "%63s %ld", key, &parsed) == 2 && strcmp(key, name) == 0) {
+            *value = parsed;
+            free(data);
+            return 0;
+        }
+    }
+
+    free(data);
+    return -1;
+}
+
 static void stats_format_timestamp(time_t value, char *out, size_t out_len) {
     struct tm *tm_info;
     tm_info = gmtime(&value);
@@ -203,12 +228,20 @@ static int stats_collect_all_current(int json_output) {
 int stats_read_cpu(const char *container_id, double *cpu_percent) {
     char path[MAX_PATH_LEN];
     long usage_ns;
+    long usage_usec;
 
     if (!container_id || !cpu_percent) return -1;
     *cpu_percent = 0.0;
 
     if (format_buffer(path, sizeof(path),
-                      "/sys/fs/cgroup/cpu/%s/cpuacct.usage", container_id) == 0 &&
+                      "/sys/fs/cgroup/mycontainer/%s/cpu.stat", container_id) == 0 &&
+        stats_read_named_value(path, "usage_usec", &usage_usec) == 0) {
+        *cpu_percent = (double) usage_usec / 100000.0;
+        return 0;
+    }
+
+    if (format_buffer(path, sizeof(path),
+                      "/sys/fs/cgroup/cpu/mycontainer/%s/cpuacct.usage", container_id) == 0 &&
         stats_read_long_file(path, &usage_ns) == 0) {
         *cpu_percent = (double) usage_ns / 100000000.0;
         return 0;
@@ -219,6 +252,7 @@ int stats_read_cpu(const char *container_id, double *cpu_percent) {
 
 int stats_read_memory(const char *container_id, long *usage, long *limit) {
     char path[MAX_PATH_LEN];
+    char *data;
     ContainerState state;
 
     if (!container_id || !usage || !limit) return -1;
@@ -226,10 +260,28 @@ int stats_read_memory(const char *container_id, long *usage, long *limit) {
     *limit = 512L * 1024L * 1024L;
 
     if (format_buffer(path, sizeof(path),
-                      "/sys/fs/cgroup/memory/%s/memory.usage_in_bytes", container_id) == 0 &&
+                      "/sys/fs/cgroup/mycontainer/%s/memory.current", container_id) == 0 &&
         stats_read_long_file(path, usage) == 0) {
         if (format_buffer(path, sizeof(path),
-                          "/sys/fs/cgroup/memory/%s/memory.limit_in_bytes", container_id) == 0) {
+                          "/sys/fs/cgroup/mycontainer/%s/memory.max", container_id) == 0 &&
+            file_exists(path)) {
+            data = read_file(path);
+            if (data) {
+                str_trim(data);
+                if (strcmp(data, "max") != 0) {
+                    *limit = atol(data);
+                }
+                free(data);
+            }
+        }
+        return 0;
+    }
+
+    if (format_buffer(path, sizeof(path),
+                      "/sys/fs/cgroup/memory/mycontainer/%s/memory.usage_in_bytes", container_id) == 0 &&
+        stats_read_long_file(path, usage) == 0) {
+        if (format_buffer(path, sizeof(path),
+                          "/sys/fs/cgroup/memory/mycontainer/%s/memory.limit_in_bytes", container_id) == 0) {
             stats_read_long_file(path, limit);
         }
         return 0;

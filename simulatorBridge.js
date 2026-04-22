@@ -7,11 +7,14 @@
  */
 
 const { execFile } = require('child_process');
+const fs = require('fs');
 const net = require('net');
 const path = require('path');
 
 const PROJECT_DIR = __dirname;
-const BINARY = path.join(PROJECT_DIR, 'mycontainer');
+const LINUX_BINARY_NAME = process.env.MYCONTAINER_BINARY ||
+    (fs.existsSync(path.join(PROJECT_DIR, 'mycontainer_linux')) ? 'mycontainer_linux' : 'mycontainer');
+const BINARY = path.join(PROJECT_DIR, LINUX_BINARY_NAME);
 const IS_WINDOWS = process.platform === 'win32';
 const SOCKET_PATH = process.env.MYCONTAINER_SOCKET || '/tmp/mycontainer.sock';
 
@@ -117,7 +120,7 @@ function executeDirect(argv) {
             const linuxProjectDir = toWslPath(PROJECT_DIR);
             const command = [
                 `cd ${shellEscape(linuxProjectDir)}`,
-                `./mycontainer ${argv.map(shellEscape).join(' ')}`
+                `./${LINUX_BINARY_NAME} ${argv.map(shellEscape).join(' ')}`
             ].join(' && ');
 
             execFile('wsl', ['bash', '-lc', command], options, (err, stdout, stderr) => {
@@ -305,6 +308,7 @@ const commit = {
 const containers = {
     run: ({ name, image, rootless = true, privileged = false, cpuset, command }) => {
         const argv = ['run'];
+        const commandArgs = [];
         if (name) argv.push(`--name=${name}`);
         if (image) argv.push(`--image=${image}`);
         if (privileged) {
@@ -314,10 +318,12 @@ const containers = {
         }
         if (cpuset) argv.push(`--cpuset=${cpuset}`);
         if (Array.isArray(command)) {
-            argv.push(...command.map(String));
+            commandArgs.push(...command.map(String));
         } else if (typeof command === 'string' && command.length > 0) {
-            argv.push(...splitArgs(command));
+            commandArgs.push(...splitArgs(command));
         }
+        argv.push('--json');
+        argv.push(...commandArgs);
         return run(argv);
     },
 };

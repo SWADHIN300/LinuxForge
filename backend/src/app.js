@@ -11,6 +11,8 @@ const securityRoute = require('./routes/security');
 const dnsRoute = require('./routes/dns');
 const exportRoute = require('./routes/export');
 const checkpointsRoute = require('./routes/checkpoints');
+const registryRoute = require('./routes/registry');
+const containersRoute = require('./routes/containers');
 
 const app = express();
 const exportsDir = path.join(__dirname, '..', 'exports');
@@ -22,6 +24,7 @@ ensureDir(exportsDir);
 app.use('/exports', express.static(exportsDir));
 
 app.use('/api/logs', logsRoute);
+app.use('/api/containers', containersRoute);
 app.use('/api/stats', statsRoute);
 app.use('/api/health', healthRoute);
 app.use('/api/volumes', volumesRoute);
@@ -30,6 +33,7 @@ app.use('/api/security', securityRoute);
 app.use('/api/dns', dnsRoute);
 app.use('/api/export', exportRoute);
 app.use('/api/checkpoints', checkpointsRoute);
+app.use('/api/registry', registryRoute);
 
 app.get('/api/healthz', (_req, res) => {
     res.json({ ok: true });

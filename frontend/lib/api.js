@@ -1,8 +1,15 @@
 const BASE = '/api';
 
 async function request(url, options = {}) {
+  const headers = { ...options.headers };
+  const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
+
+  if (!isFormData && !headers['Content-Type']) {
+    headers['Content-Type'] = 'application/json';
+  }
+
   const res = await fetch(`${BASE}${url}`, {
-    headers: { 'Content-Type': 'application/json', ...options.headers },
+    headers,
     ...options,
   });
   if (!res.ok) {
@@ -15,12 +22,14 @@ async function request(url, options = {}) {
 const api = {
   get: (url) => request(url),
   post: (url, body) => request(url, { method: 'POST', body: JSON.stringify(body) }),
+  postForm: (url, body) => request(url, { method: 'POST', body }),
   delete: (url) => request(url, { method: 'DELETE' }),
 };
 
 /* ── containers (reuses commit ls) ── */
 export const containersApi = {
-  list: () => api.get('/logs'),
+  list: () => api.get('/containers'),
+  run: (payload) => api.post('/containers/run', payload),
 };
 
 /* ── logs ── */
@@ -86,7 +95,14 @@ export const checkpointsApi = {
 
 /* ── registry ── */
 export const registryApi = {
-  list: () => api.get('/export').catch(() => ({ images: [] })),
+  list: () => api.get('/registry'),
+  build: (payload) => api.post('/registry/build', payload),
+  upload: (archive, image) => {
+    const form = new FormData();
+    form.append('archive', archive);
+    form.append('image', image);
+    return api.postForm('/registry/import-upload', form);
+  },
 };
 
 /* ── network ── */
