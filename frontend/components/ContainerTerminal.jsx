@@ -13,9 +13,9 @@ export default function ContainerTerminal({ containerId, open, onClose }) {
     let term, fitAddon, ws;
 
     const init = async () => {
-      const { Terminal } = await import('xterm');
-      const { FitAddon } = await import('xterm-addon-fit');
-      await import('xterm/css/xterm.css');
+      const { Terminal } = await import('@xterm/xterm');
+      const { FitAddon } = await import('@xterm/addon-fit');
+      await import('@xterm/xterm/css/xterm.css');
 
       term = new Terminal({
         cursorBlink: true,
